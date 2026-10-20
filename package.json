@@ -1,0 +1,9 @@
+{
+  "name": "tv-home",
+  "version": "1.0.0",
+  "description": "Стартовый экран для Samsung TV: время, погода, фото городов",
+  "packageType": "app",
+  "appName": "Дом",
+  "appPath": "index.html",
+  "keys": []
+}

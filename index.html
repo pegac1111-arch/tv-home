@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Дом</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0b1020; color: #fff;
+    font-family: "SamsungOne", "Samsung Sans", "Helvetica Neue", Arial, sans-serif; }
+  #bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: background 4s ease; }
+  .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; }
+  #o1 { width: 900px; height: 900px; left: -200px; top: -250px; animation: d1 38s ease-in-out infinite alternate; }
+  #o2 { width: 800px; height: 800px; right: -150px; bottom: -300px; animation: d2 44s ease-in-out infinite alternate; }
+  #o3 { width: 600px; height: 600px; left: 45%; top: 30%; animation: d3 52s ease-in-out infinite alternate; }
+  @keyframes d1 { to { transform: translate(380px, 220px) scale(1.15); } }
+  @keyframes d2 { to { transform: translate(-420px, -180px) scale(1.2); } }
+  @keyframes d3 { to { transform: translate(-300px, 160px) scale(.85); } }
+  .ph { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity 3s ease; }
+  .ph.on { opacity: 1; animation: kb 70s linear infinite alternate; }
+  @keyframes kb { from { transform: scale(1.0); } to { transform: scale(1.08); } }
+  #shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, rgba(0,0,0,.66) 0%, rgba(0,0,0,.32) 45%, rgba(0,0,0,.66) 100%); }
+  #cityname { position: absolute; right: 150px; bottom: 60px; font-size: 28px; opacity: .6; letter-spacing: 3px; text-transform: uppercase; }
+  #main, #weather { text-shadow: 0 3px 18px rgba(0,0,0,.45); }
+  #main { position: absolute; left: 150px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
+  #greet { font-size: 46px; font-weight: 300; opacity: .85; letter-spacing: 1px; }
+  #time { font-size: 300px; font-weight: 200; line-height: 1; letter-spacing: -8px; margin-top: 10px; }
+  #date { font-size: 52px; font-weight: 300; opacity: .8; margin-top: 18px; }
+  #weather { position: absolute; right: 150px; top: 0; bottom: 0; width: 620px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; }
+  #city { font-size: 36px; opacity: .7; letter-spacing: 2px; text-transform: uppercase; }
+  #now { display: flex; align-items: center; margin-top: 12px; }
+  #temp { font-size: 190px; font-weight: 200; line-height: 1; }
+  #icon { width: 150px; height: 150px; margin-right: 30px; }
+  #desc { font-size: 44px; font-weight: 300; margin-top: 6px; }
+  #feels { font-size: 32px; opacity: .65; margin-top: 10px; }
+  #days { display: flex; margin-top: 54px; }
+  .day { margin-left: 22px; width: 180px; padding: 22px 0 18px; border-radius: 28px; background: rgba(0,0,0,.35); text-align: center; }
+  .day .n { font-size: 30px; opacity: .75; text-transform: capitalize; }
+  .day svg { width: 70px; height: 70px; margin: 10px 0 4px; }
+  .day .t { font-size: 34px; }
+  .day .t span { opacity: .55; }
+  #hint { position: absolute; left: 150px; bottom: 60px; text-shadow: 0 2px 8px rgba(0,0,0,.6); font-size: 26px; opacity: .35; }
+</style></head>
+<body>
+<div id="bg"><div class="orb" id="o1"></div><div class="orb" id="o2"></div><div class="orb" id="o3"></div></div>
+<div class="ph" id="p0"></div><div class="ph" id="p1"></div><div id="shade"></div>
+<div id="cityname"></div>
+<div id="main">
+  <div id="greet"></div>
+  <div id="time">--:--</div>
+  <div id="date"></div>
+</div>
+<div id="weather">
+  <div id="city">Киев</div>
+  <div id="now"><svg id="icon" viewBox="0 0 64 64"></svg><div id="temp">--°</div></div>
+  <div id="desc"></div>
+  <div id="feels"></div>
+  <div id="days"></div>
+</div>
+<div id="hint">Назад: выйти</div>
+<script>
+var CITY = { name: "Киев", lat: 50.45, lon: 30.52, tz: "Europe/Kyiv" };
+var DAYS = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+var DSHORT = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+var MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+
+// Палитры фона по времени суток: [фон, пятно1, пятно2, пятно3]
+var PAL = {
+  night: ["#070b1a", "#1b2a6b", "#3a1c5c", "#0e3b5c"],
+  morning: ["#1d1b3a", "#f08a5d", "#b83b5e", "#6a2c70"],
+  day: ["#0f3057", "#00587a", "#008891", "#3a8fb7"],
+  evening: ["#1a1033", "#e55b5b", "#6c3483", "#f39c12"]
+};
+
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+function partOfDay(h) {
+  if (h >= 5 && h < 11) return "morning";
+  if (h >= 11 && h < 17) return "day";
+  if (h >= 17 && h < 22) return "evening";
+  return "night";
+}
+
+function greeting(h) {
+  if (h >= 5 && h < 12) return "Доброе утро";
+  if (h >= 12 && h < 18) return "Добрый день";
+  if (h >= 18 && h < 23) return "Добрый вечер";
+  return "Доброй ночи";
+}
+
+var lastPart = "";
+function tick() {
+  var d = new Date();
+  var h = d.getHours();
+  document.getElementById("time").textContent = pad(h) + ":" + pad(d.getMinutes());
+  var dn = DAYS[d.getDay()]; document.getElementById("date").textContent = dn.charAt(0).toUpperCase() + dn.slice(1) + ", " + d.getDate() + " " + MONTHS[d.getMonth()];
+  document.getElementById("greet").textContent = greeting(h);
+  var p = partOfDay(h);
+  if (p !== lastPart) {
+    lastPart = p;
+    var c = PAL[p];
+    document.getElementById("bg").style.background = c[0];
+    document.getElementById("o1").style.background = c[1];
+    document.getElementById("o2").style.background = c[2];
+    document.getElementById("o3").style.background = c[3];
+  }
+}
+
+// Иконки погоды (WMO коды Open-Meteo)
+function icon(code) {
+  var sun = '<circle cx="32" cy="32" r="12" fill="#FFD25A"/><g stroke="#FFD25A" stroke-width="4" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="13"/><line x1="32" y1="51" x2="32" y2="58"/><line x1="6" y1="32" x2="13" y2="32"/><line x1="51" y1="32" x2="58" y2="32"/><line x1="13" y1="13" x2="18" y2="18"/><line x1="46" y1="46" x2="51" y2="51"/><line x1="13" y1="51" x2="18" y2="46"/><line x1="46" y1="18" x2="51" y2="13"/></g>';
+  var cloud = '<path d="M20 46h26a10 10 0 0 0 0-20 14 14 0 0 0-27-3A11 11 0 0 0 20 46z" fill="#E8EEF7"/>';
+  var small = '<circle cx="22" cy="22" r="10" fill="#FFD25A"/>' + '<path d="M24 50h24a9 9 0 0 0 0-18 12 12 0 0 0-23-3A10 10 0 0 0 24 50z" fill="#E8EEF7"/>';
+  var drops = '<g stroke="#7FC8FF" stroke-width="4" stroke-linecap="round"><line x1="24" y1="52" x2="21" y2="60"/><line x1="34" y1="52" x2="31" y2="60"/><line x1="44" y1="52" x2="41" y2="60"/></g>';
+  var snow = '<g fill="#FFFFFF"><circle cx="23" cy="56" r="3"/><circle cx="33" cy="58" r="3"/><circle cx="43" cy="56" r="3"/></g>';
+  var bolt = '<path d="M34 46l-8 12h7l-3 8 10-13h-7l4-7z" fill="#FFD25A"/>';
+  var fog = '<g stroke="#E8EEF7" stroke-width="4" stroke-linecap="round" opacity=".8"><line x1="12" y1="50" x2="52" y2="50"/><line x1="16" y1="58" x2="48" y2="58"/></g>';
+  if (code === 0) return sun;
+  if (code <= 2) return small;
+  if (code === 3) return cloud;
+  if (code === 45 || code === 48) return cloud + fog;
+  if (code >= 71 && code <= 77 || code === 85 || code === 86) return cloud + snow;
+  if (code >= 95) return cloud + bolt;
+  return cloud + drops;
+}
+
+function descr(code) {
+  if (code === 0) return "Ясно";
+  if (code === 1) return "Преимущественно ясно";
+  if (code === 2) return "Переменная облачность";
+  if (code === 3) return "Пасмурно";
+  if (code === 45 || code === 48) return "Туман";
+  if (code >= 51 && code <= 57) return "Морось";
+  if (code >= 61 && code <= 67) return "Дождь";
+  if (code >= 71 && code <= 77) return "Снег";
+  if (code >= 80 && code <= 82) return "Ливень";
+  if (code === 85 || code === 86) return "Снегопад";
+  if (code >= 95) return "Гроза";
+  return "";
+}
+
+function weather() {
+  var url = "https://api.open-meteo.com/v1/forecast?latitude=" + CITY.lat + "&longitude=" + CITY.lon +
+    "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=" + encodeURIComponent(CITY.tz);
+  var x = new XMLHttpRequest();
+  x.open("GET", url);
+  x.onload = function () {
+    try {
+      var d = JSON.parse(x.responseText);
+      var c = d.current;
+      document.getElementById("temp").textContent = Math.round(c.temperature_2m) + "°";
+      document.getElementById("icon").innerHTML = icon(c.weather_code);
+      document.getElementById("desc").textContent = descr(c.weather_code);
+      document.getElementById("feels").textContent = "Ощущается как " + Math.round(c.apparent_temperature) + "°, ветер " + Math.round(c.wind_speed_10m / 3.6) + " м/с";
+      var html = "";
+      for (var i = 1; i < 4; i++) {
+        var dt = new Date(d.daily.time[i] + "T12:00:00");
+        html += '<div class="day"><div class="n">' + (i === 1 ? "завтра" : DSHORT[dt.getDay()]) + '</div>' +
+          '<svg viewBox="0 0 64 64">' + icon(d.daily.weather_code[i]) + '</svg>' +
+          '<div class="t">' + Math.round(d.daily.temperature_2m_max[i]) + '° <span>' + Math.round(d.daily.temperature_2m_min[i]) + '°</span></div></div>';
+      }
+      document.getElementById("days").innerHTML = html;
+    } catch (e) {}
+  };
+  x.send();
+}
+
+document.addEventListener("keydown", function (e) {
+  if (e.keyCode === 10009) {
+    try { tizen.application.getCurrentApplication().exit(); } catch (err) {}
+  }
+});
+
+
+// Фото городов: днём дневные, вечером и ночью ночные, смена раз в минуту
+var PHOTOS = [{"f": "bg/c00.jpg", "city": "Киев", "night": false}, {"f": "bg/c01.jpg", "city": "Киев", "night": true}, {"f": "bg/c02.jpg", "city": "Париж", "night": false}, {"f": "bg/c03.jpg", "city": "Париж", "night": true}, {"f": "bg/c04.jpg", "city": "Нью-Йорк", "night": false}, {"f": "bg/c05.jpg", "city": "Нью-Йорк", "night": true}, {"f": "bg/c06.jpg", "city": "Токио", "night": false}, {"f": "bg/c07.jpg", "city": "Токио", "night": true}, {"f": "bg/c08.jpg", "city": "Дубай", "night": false}, {"f": "bg/c09.jpg", "city": "Дубай", "night": true}, {"f": "bg/c12.jpg", "city": "Прага", "night": true}, {"f": "bg/c13.jpg", "city": "Лондон", "night": false}, {"f": "bg/c14.jpg", "city": "Лондон", "night": true}, {"f": "bg/c15.jpg", "city": "Венеция", "night": false}, {"f": "bg/c17.jpg", "city": "Гонконг", "night": true}, {"f": "bg/c18.jpg", "city": "Сингапур", "night": true}, {"f": "bg/c19.jpg", "city": "Лиссабон", "night": false}];
+var cur = 0, layer = 0, order = [];
+function pool() {
+  var h = new Date().getHours();
+  var night = (h >= 19 || h < 6);
+  var r = [];
+  for (var i = 0; i < PHOTOS.length; i++) if (PHOTOS[i].night === night) r.push(PHOTOS[i]);
+  return r.length ? r : PHOTOS;
+}
+function nextPhoto() {
+  if (!order.length) { order = pool().slice(); order.sort(function () { return Math.random() - 0.5; }); }
+  var p = order.shift();
+  var img = new Image();
+  img.onload = function () {
+    var a = document.getElementById("p" + layer), b = document.getElementById("p" + (1 - layer));
+    a.style.backgroundImage = "url(" + p.f + ")";
+    a.className = "ph on"; b.className = "ph";
+    layer = 1 - layer;
+    document.getElementById("cityname").textContent = p.city;
+  };
+  img.src = p.f;
+}
+nextPhoto();
+setInterval(nextPhoto, 60 * 1000);
+
+tick();
+setInterval(tick, 1000);
+weather();
+setInterval(weather, 15 * 60 * 1000);
+</script>
+</body></html>
